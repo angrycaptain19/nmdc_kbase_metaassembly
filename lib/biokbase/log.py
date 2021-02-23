@@ -66,6 +66,7 @@ METHODS
            to use the control API-defined log level.
 """
 
+
 import json as _json
 import urllib.request as _urllib
 import syslog as _syslog
@@ -115,9 +116,7 @@ _MLOG_TO_SYSLOG = [_syslog.LOG_EMERG, _syslog.LOG_ALERT, _syslog.LOG_CRIT,
                  _syslog.LOG_INFO, _syslog.LOG_DEBUG, _syslog.LOG_DEBUG,
                  _syslog.LOG_DEBUG]
 #ALLOWED_LOG_LEVELS = set(_MLOG_TEXT_TO_LEVEL.values())
-_MLOG_LEVEL_TO_TEXT = {}
-for k, v in _MLOG_TEXT_TO_LEVEL.items():
-    _MLOG_LEVEL_TO_TEXT[v] = k
+_MLOG_LEVEL_TO_TEXT = {v: k for k, v in _MLOG_TEXT_TO_LEVEL.items()}
 LOG_LEVEL_MIN = min(_MLOG_LEVEL_TO_TEXT.keys())
 LOG_LEVEL_MAX = max(_MLOG_LEVEL_TO_TEXT.keys())
 
@@ -166,8 +165,7 @@ class log(object):
         self._init = False
 
     def _get_time_since_start(self):
-        time_diff = time.time() - self._time_at_config_update
-        return time_diff
+        return time.time() - self._time_at_config_update
 
     def get_log_level(self):
         if(self._user_log_level != -1):
@@ -363,5 +361,4 @@ class log(object):
             if self.get_log_file():
                 self._log(ident, message)
 
-if __name__ == '__main__':
-    pass
+pass
