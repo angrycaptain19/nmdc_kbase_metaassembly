@@ -42,12 +42,12 @@ def get_service_name():
 def get_config():
     if not get_config_file():
         return None
-    retconfig = {}
     config = ConfigParser()
     config.read(get_config_file())
-    for nameval in config.items(get_service_name() or 'nmdc_metaassembly'):
-        retconfig[nameval[0]] = nameval[1]
-    return retconfig
+    return {
+        nameval[0]: nameval[1]
+        for nameval in config.items(get_service_name() or 'nmdc_metaassembly')
+    }
 
 config = get_config()
 
@@ -115,10 +115,7 @@ class JSONRPCServiceCustom(JSONRPCService):
             # Exception was raised inside the method.
             newerr = JSONServerError()
             newerr.trace = traceback.format_exc()
-            if len(e.args) == 1:
-                newerr.data = repr(e.args[0])
-            else:
-                newerr.data = repr(e.args)
+            newerr.data = repr(e.args[0]) if len(e.args) == 1 else repr(e.args)
             raise newerr
         return result
 
@@ -219,13 +216,11 @@ class MethodContext(dict):
         self._log(log.INFO, message)
 
     def log_debug(self, message, level=1):
-        if level in self._debug_levels:
-            pass
-        else:
+        if level not in self._debug_levels:
             level = int(level)
             if level < 1 or level > 3:
                 raise ValueError("Illegal log level: " + str(level))
-            level = level + 6
+            level += 6
         self._log(level, message)
 
     def set_log_level(self, level):
@@ -244,37 +239,37 @@ class MethodContext(dict):
 
     def provenance(self):
         callbackURL = os.environ.get('SDK_CALLBACK_URL')
-        if callbackURL:
-            # OK, there's a callback server from which we can get provenance
-            arg_hash = {'method': 'CallbackServer.get_provenance',
-                        'params': [],
-                        'version': '1.1',
-                        'id': str(_random.random())[2:]
-                        }
-            body = json.dumps(arg_hash)
-            response = _requests.post(callbackURL, data=body,
-                                      timeout=60)
-            response.encoding = 'utf-8'
-            if response.status_code == 500:
-                if ('content-type' in response.headers and
-                        response.headers['content-type'] ==
-                        'application/json'):
-                    err = response.json()
-                    if 'error' in err:
-                        raise ServerError(**err['error'])
-                    else:
-                        raise ServerError('Unknown', 0, response.text)
-                else:
-                    raise ServerError('Unknown', 0, response.text)
-            if not response.ok:
-                response.raise_for_status()
-            resp = response.json()
-            if 'result' not in resp:
-                raise ServerError('Unknown', 0,
-                                  'An unknown server error occurred')
-            return resp['result'][0]
-        else:
+        if not callbackURL:
             return self.get('provenance')
+
+        # OK, there's a callback server from which we can get provenance
+        arg_hash = {'method': 'CallbackServer.get_provenance',
+                    'params': [],
+                    'version': '1.1',
+                    'id': str(_random.random())[2:]
+                    }
+        body = json.dumps(arg_hash)
+        response = _requests.post(callbackURL, data=body,
+                                  timeout=60)
+        response.encoding = 'utf-8'
+        if response.status_code == 500:
+            if (
+                'content-type' not in response.headers
+                or response.headers['content-type'] != 'application/json'
+            ):
+                raise ServerError('Unknown', 0, response.text)
+            err = response.json()
+            if 'error' in err:
+                raise ServerError(**err['error'])
+            else:
+                raise ServerError('Unknown', 0, response.text)
+        if not response.ok:
+            response.raise_for_status()
+        resp = response.json()
+        if 'result' not in resp:
+            raise ServerError('Unknown', 0,
+                              'An unknown server error occurred')
+        return resp['result'][0]
 
 
 class ServerError(Exception):
@@ -290,7 +285,7 @@ class ServerError(Exception):
         super(Exception, self).__init__(message)
         self.name = name
         self.code = code
-        self.message = message if message else ''
+        self.message = message or ''
         self.data = data or error or ''
         # data = JSON RPC 2.0, error = 1.1
 
@@ -337,7 +332,7 @@ class Application(object):
             call_id=True, logfile=self.userlog.get_log_file())
         self.serverlog.set_log_level(6)
         self.rpc_service = JSONRPCServiceCustom()
-        self.method_authentication = dict()
+        self.method_authentication = {}
         self.rpc_service.add(impl_nmdc_metaassembly.run_nmdc_metaassembly,
                              name='nmdc_metaassembly.run_nmdc_metaassembly',
                              types=[dict])
@@ -401,9 +396,7 @@ class Application(object):
                                 'nmdc_metaassembly ' +
                                 'but no authentication header was passed')
                             raise err
-                        elif token is None and auth_req == 'optional':
-                            pass
-                        else:
+                        elif token is not None or auth_req != 'optional':
                             try:
                                 user = self.auth_client.get_user(token)
                                 ctx['user_id'] = user
@@ -446,11 +439,7 @@ class Application(object):
         # print('Result from the method call is:\n%s\n' % \
         #    pprint.pformat(rpc_result))
 
-        if rpc_result:
-            response_body = rpc_result
-        else:
-            response_body = ''
-
+        response_body = rpc_result or ''
         response_headers = [
             ('Access-Control-Allow-Origin', '*'),
             ('Access-Control-Allow-Headers', environ.get(

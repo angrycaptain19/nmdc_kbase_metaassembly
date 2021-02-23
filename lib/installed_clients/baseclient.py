@@ -137,7 +137,7 @@ class BaseClient(object):
             raise ValueError(url + " isn't a valid http url")
         self.url = url
         self.timeout = int(timeout)
-        self._headers = dict()
+        self._headers = {}
         self.trust_all_ssl_certificates = trust_all_ssl_certificates
         self.lookup_url = lookup_url
         self.async_job_check_time = async_job_check_time_ms / 1000.0
@@ -181,12 +181,11 @@ class BaseClient(object):
                              verify=not self.trust_all_ssl_certificates)
         ret.encoding = 'utf-8'
         if ret.status_code == 500:
-            if ret.headers.get(_CT) == _AJ:
-                err = ret.json()
-                if 'error' in err:
-                    raise ServerError(**err['error'])
-                else:
-                    raise ServerError('Unknown', 0, ret.text)
+            if ret.headers.get(_CT) != _AJ:
+                raise ServerError('Unknown', 0, ret.text)
+            err = ret.json()
+            if 'error' in err:
+                raise ServerError(**err['error'])
             else:
                 raise ServerError('Unknown', 0, ret.text)
         if not ret.ok:
@@ -246,8 +245,7 @@ class BaseClient(object):
             async_job_check_time = (async_job_check_time *
                                     self.async_job_check_time_scale_percent /
                                     100.0)
-            if async_job_check_time > self.async_job_check_max_time:
-                async_job_check_time = self.async_job_check_max_time
+            async_job_check_time = min(async_job_check_time, self.async_job_check_max_time)
 
             try:
                 job_state = self._check_job(mod, job_id)

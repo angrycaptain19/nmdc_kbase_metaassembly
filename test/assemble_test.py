@@ -65,8 +65,6 @@ class aassemblyTest(unittest.TestCase):
         cls.tdir=os.path.dirname(os.path.realpath(__file__))
         cls.wdl=cls.tdir + "/../metaAssembly/"
 
-        pass
-
     @classmethod
     def tearDownClass(cls):
         pass
